@@ -9,6 +9,9 @@ class StubAdsService implements AdsService {
   final AppLogger _logger;
 
   bool _isInitialized = false;
+  final List<String> _triggerLog = <String>[];
+
+  List<String> get triggerLog => List<String>.unmodifiable(_triggerLog);
 
   @override
   Future<void> init() async {
@@ -32,12 +35,14 @@ class StubAdsService implements AdsService {
 
   @override
   Future<void> maybeShowInterstitial(String trigger) async {
+    _triggerLog.add(trigger);
     _logger.debug('StubAdsService interstitial trigger: $trigger (initialized: $_isInitialized)');
   }
 
   @override
   void dispose() {
     _isInitialized = false;
+    _triggerLog.clear();
     _logger.info('StubAdsService disposed.');
   }
 }

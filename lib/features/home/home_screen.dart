@@ -2,26 +2,66 @@ import 'package:flutter/material.dart';
 
 import '../../core/di/service_locator.dart';
 import '../../core/navigation/app_routes.dart';
-import '../../services/ads/ads_service.dart';
+import '../../services/asr/model_manager.dart';
+import '../../ui/widgets/ad_banner_slot.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  Future<void> _navigateWithTrigger(
-    BuildContext context, {
-    required String route,
-    required String trigger,
-  }) async {
-    await serviceLocator<AdsService>().maybeShowInterstitial(trigger);
-    if (context.mounted) {
-      Navigator.of(context).pushNamed(route);
+  void _navigate(BuildContext context, String route) {
+    Navigator.of(context).pushNamed(route);
+  }
+
+  Future<void> _startListening(BuildContext context) async {
+    try {
+      final ModelStatus status = await serviceLocator<ModelManager>().ensureBundledModelCopied();
+      if (!status.exists) {
+        if (!context.mounted) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Model Missing'),
+              content: const Text(
+                'Whisper model is missing. Open Settings and use Diagnostics / model tools before starting listening.',
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushNamed(AppRoutes.settings);
+                  },
+                  child: const Text('Open Settings'),
+                ),
+              ],
+            );
+          },
+        );
+        return;
+      }
+
+      if (!context.mounted) {
+        return;
+      }
+      _navigate(context, AppRoutes.listeningWarmup);
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not verify model status: $error')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final AdsService adsService = serviceLocator<AdsService>();
-
     return Scaffold(
       appBar: AppBar(title: const Text('Quran Live Ayah')),
       body: SafeArea(
@@ -37,33 +77,21 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () => _navigateWithTrigger(
-                  context,
-                  route: AppRoutes.listeningWarmup,
-                  trigger: 'home_start_listening',
-                ),
+                onPressed: () => _startListening(context),
                 child: const Text('Start Listening'),
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => _navigateWithTrigger(
-                  context,
-                  route: AppRoutes.quranSearchDebug,
-                  trigger: 'home_quran_search_debug',
-                ),
+                onPressed: () => _navigate(context, AppRoutes.quranSearchDebug),
                 child: const Text('Quran Search (Debug)'),
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => _navigateWithTrigger(
-                  context,
-                  route: AppRoutes.settings,
-                  trigger: 'home_settings',
-                ),
+                onPressed: () => _navigate(context, AppRoutes.settings),
                 child: const Text('Settings'),
               ),
               const Spacer(),
-              adsService.banner(),
+              const AdBannerSlot(),
             ],
           ),
         ),

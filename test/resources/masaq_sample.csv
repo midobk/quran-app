@@ -1,0 +1,16 @@
+ID,Sura_No,Verse_No,Column5,Word_No,Word,Without_Diacritics,Segmented_Word,Morph_tag,Morph_type
+1,1,1,1,1,بِسْمِ,بسم,ب,PREP,Prefix
+1,1,1,1,2,بِسْمِ,بسم,اسم,NOUN_ABSTRACT,Stem
+2,1,1,2,1,اللَّهِ,الله,ال,DET,Prefix
+2,1,1,2,2,اللَّهِ,الله,له,NOUN_PROP,Stem
+3,1,1,3,1,الرَّحْمَٰنِ,الرحمن,ال,DET,Prefix
+3,1,1,3,2,الرَّحْمَٰنِ,الرحمن,رحمن,NOUN_PROP,Stem
+4,1,1,4,1,الرَّحِيمِ,الرحيم,ال,DET,Prefix
+4,1,1,4,2,الرَّحِيمِ,الرحيم,رحيم,NOUN_PROP,Stem
+5,1,2,1,1,ٱلْحَمْدُ,الحمد,ال,DET,Prefix
+5,1,2,1,2,ٱلْحَمْدُ,الحمد,حمد,NOUN,Stem
+6,1,2,2,1,لِلَّهِ,لله,ل,PREP,Prefix
+6,1,2,2,2,لِلَّهِ,لله,الله,NOUN_PROP,Stem
+7,1,2,3,1,رَبِّ,رب,رب,NOUN,Stem
+8,1,2,4,1,ٱلْعَٰلَمِينَ,العالمين,ال,DET,Prefix
+8,1,2,4,2,ٱلْعَٰلَمِينَ,العالمين,علمين,NOUN,Stem
