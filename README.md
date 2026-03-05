@@ -66,13 +66,19 @@ Setup scripts are available under `scripts/` and are intentionally non-destructi
    flutter run -d ios
    ```
 
-6. Install iOS pods when native iOS dependencies change:
+6. Install iOS pods before first iOS run (and whenever native iOS dependencies change):
 
    ```bash
    cd ios
    pod install
    cd ..
    ```
+
+7. If `flutter run -d ios` fails, run this quick iOS preflight:
+   - Open Xcode once and accept license prompts
+   - Ensure full Xcode app exists at `/Applications/Xcode.app`
+   - Ensure CocoaPods is installed (`pod --version`)
+   - Ensure at least ~15 GB free disk space (iOS artifacts can fail with `No space left on device`)
 
 ### Windows (Android)
 
@@ -264,6 +270,9 @@ After running the script:
 - `Undefined symbol: wcpp_*` (iOS):
   - Run `cd ios && pod install`
   - Clean and rebuild (`flutter clean`, then `flutter run -d ios`)
+- `No space left on device` while downloading/building iOS artifacts:
+  - Free disk space (target at least 15 GB)
+  - Retry `flutter build ios --simulator --no-codesign` or `flutter run -d ios`
 - Android CMake/NDK errors:
   - Confirm NDK `27.0.12077973` is installed in Android Studio SDK Manager
   - Confirm CMake is installed in SDK Manager
