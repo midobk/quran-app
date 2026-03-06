@@ -27,8 +27,6 @@ flutter_ios_podfile_setup
 
 target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-
-  pod 'WhisperCppBridge', :path => '../native/whispercpp_ios'
 end
 
 post_install do |installer|
