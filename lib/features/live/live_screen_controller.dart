@@ -24,6 +24,8 @@ class LiveScreenController extends ChangeNotifier {
     AppLogger? logger,
     DiagnosticsStore? diagnosticsStore,
     LiveGuardrailConfig guardrailConfig = const LiveGuardrailConfig(),
+    LiveTrackingTuning trackingTuning = const LiveTrackingTuning(),
+    this.autoAdvanceEnabled = true,
     this.tickInterval = const Duration(milliseconds: 1200),
     this.chunkSeconds = 7,
     this.transcribeTimeout = const Duration(seconds: 20),
@@ -40,7 +42,8 @@ class LiveScreenController extends ChangeNotifier {
        _repository = repository,
        _logger = logger ?? const AppLogger(),
        _diagnosticsStore = diagnosticsStore,
-       _guardrailConfig = guardrailConfig {
+       _guardrailConfig = guardrailConfig,
+       _trackingTuning = trackingTuning {
     _effectiveTickInterval = tickInterval;
     _effectiveChunkSeconds = chunkSeconds;
   }
@@ -53,7 +56,9 @@ class LiveScreenController extends ChangeNotifier {
   final AppLogger _logger;
   final DiagnosticsStore? _diagnosticsStore;
   final LiveGuardrailConfig _guardrailConfig;
+  final LiveTrackingTuning _trackingTuning;
 
+  final bool autoAdvanceEnabled;
   final Duration tickInterval;
   final int chunkSeconds;
   final Duration transcribeTimeout;
@@ -236,7 +241,7 @@ class LiveScreenController extends ChangeNotifier {
         _onNoResultsTick();
         _recordDiagnosticsTick(
           vadSkipped: tickVadSkipped,
-          lowConfidence: true,
+          lowConfidence: autoAdvanceEnabled,
           whisperLatencyMs: tickWhisperLatencyMs,
           searchLatencyMs: tickSearchLatencyMs,
         );
@@ -263,7 +268,7 @@ class LiveScreenController extends ChangeNotifier {
         _applyGuardrail(_lastWhisperLatencyMs);
         _recordDiagnosticsTick(
           vadSkipped: tickVadSkipped,
-          lowConfidence: true,
+          lowConfidence: autoAdvanceEnabled,
           whisperLatencyMs: tickWhisperLatencyMs,
           searchLatencyMs: tickSearchLatencyMs,
         );
@@ -280,7 +285,22 @@ class LiveScreenController extends ChangeNotifier {
         _onNoResultsTick();
         _recordDiagnosticsTick(
           vadSkipped: tickVadSkipped,
-          lowConfidence: true,
+          lowConfidence: autoAdvanceEnabled,
+          whisperLatencyMs: tickWhisperLatencyMs,
+          searchLatencyMs: tickSearchLatencyMs,
+        );
+        return;
+      }
+
+      if (!autoAdvanceEnabled) {
+        _lastConfidence = 0;
+        _lastNUsed = 0;
+        _lastResultCount = 0;
+        _clearTrackingPenaltyState();
+        _clearMatch();
+        _recordDiagnosticsTick(
+          vadSkipped: tickVadSkipped,
+          lowConfidence: false,
           whisperLatencyMs: tickWhisperLatencyMs,
           searchLatencyMs: tickSearchLatencyMs,
         );
@@ -324,6 +344,7 @@ class LiveScreenController extends ChangeNotifier {
       final bool confident = LiveTrackingLogic.isConfidentCandidate(
         topScore: best.score,
         secondScore: second?.score,
+        tuning: _trackingTuning,
       );
       tickLowConfidence = !confident;
 
@@ -334,6 +355,7 @@ class LiveScreenController extends ChangeNotifier {
         secondScore: second?.score,
         isRecoveryMode: _isRecoveryMode,
         recoveryTicks: _recoveryTicks,
+        tuning: _trackingTuning,
       );
 
       if (confident) {
@@ -375,7 +397,7 @@ class LiveScreenController extends ChangeNotifier {
       _errorMessage = 'Live tracking error: $error';
       _recordDiagnosticsTick(
         vadSkipped: tickVadSkipped,
-        lowConfidence: true,
+        lowConfidence: autoAdvanceEnabled,
         whisperLatencyMs: tickWhisperLatencyMs,
         searchLatencyMs: tickSearchLatencyMs,
       );
@@ -393,9 +415,14 @@ class LiveScreenController extends ChangeNotifier {
     _lastConfidence = 0;
     _lastNUsed = 0;
     _lastResultCount = 0;
+    _clearMatch();
+
+    if (!autoAdvanceEnabled) {
+      return;
+    }
+
     _consecutiveNoResults++;
     _consecutiveLowConfidence = 0;
-    _clearMatch();
     _updateRecoveryModeForPenaltyTick();
   }
 

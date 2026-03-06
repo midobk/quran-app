@@ -4,6 +4,7 @@ import '../core/di/service_locator.dart';
 import '../core/navigation/app_router.dart';
 import '../core/navigation/app_routes.dart';
 import '../services/theme/theme_service.dart';
+import 'theme/quran_listener_design.dart';
 
 class QuranApp extends StatelessWidget {
   const QuranApp({super.key});
@@ -17,20 +18,11 @@ class QuranApp extends StatelessWidget {
       animation: themeService,
       builder: (BuildContext context, Widget? child) {
         return MaterialApp(
-          title: 'Quran Live Ayah',
+          title: 'Quran Listener',
           debugShowCheckedModeBanner: false,
           themeMode: themeService.materialThemeMode,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF17624D)),
-            useMaterial3: true,
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF17624D),
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-          ),
+          theme: buildQuranListenerTheme(brightness: Brightness.light),
+          darkTheme: buildQuranListenerTheme(brightness: Brightness.dark),
           initialRoute: AppRoutes.home,
           onGenerateRoute: router.onGenerateRoute,
         );

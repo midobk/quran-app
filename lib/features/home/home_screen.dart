@@ -3,13 +3,20 @@ import 'package:flutter/material.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../services/asr/model_manager.dart';
-import '../../ui/widgets/ad_banner_slot.dart';
+import '../../ui/theme/quran_listener_design.dart';
+import '../settings/diagnostics_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   void _navigate(BuildContext context, String route) {
     Navigator.of(context).pushNamed(route);
+  }
+
+  Future<void> _openDiagnostics(BuildContext context) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const DiagnosticsScreen()));
   }
 
   Future<void> _startListening(BuildContext context) async {
@@ -62,40 +69,96 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final QuranListenerPalette colors = context.quranPalette;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Quran Live Ayah')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+      body: QuranListenerBackground(
+        child: SafeArea(
+          bottom: false,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(
-                'Offline Quran live ayah display app skeleton.',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
+              const SizedBox(height: 22),
+              const _HomeHeader(),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 26),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      QuranListenerMicHeroButton(onPressed: () => _startListening(context)),
+                      const SizedBox(height: 30),
+                      Text('Start Listening', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Tap to begin listening to Quran recitation. The app will automatically detect and display the current ayah.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => _startListening(context),
-                child: const Text('Start Listening'),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: colors.strokeDefault)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    QuranListenerIconButton(
+                      icon: const Icon(Icons.settings_rounded),
+                      onPressed: () => _navigate(context, AppRoutes.settings),
+                    ),
+                    const SizedBox(width: 16),
+                    QuranListenerIconButton(
+                      icon: const Icon(Icons.monitor_heart_rounded),
+                      onPressed: () => _openDiagnostics(context),
+                    ),
+                    const SizedBox(width: 16),
+                    QuranListenerIconButton(
+                      icon: const Icon(Icons.search_rounded),
+                      onPressed: () => _navigate(context, AppRoutes.quranSearchDebug),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () => _navigate(context, AppRoutes.quranSearchDebug),
-                child: const Text('Quran Search (Debug)'),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () => _navigate(context, AppRoutes.settings),
-                child: const Text('Settings'),
-              ),
-              const Spacer(),
-              const AdBannerSlot(),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Column(
+      children: <Widget>[
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondary,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(Icons.access_time_rounded, size: 30, color: theme.colorScheme.primary),
+        ),
+        const SizedBox(height: 14),
+        Text('Quran Listener', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 6),
+        Text(
+          'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ],
     );
   }
 }

@@ -28,3 +28,7 @@ flutter:
     - assets/db/
     - assets/data/
     - assets/models/
+  fonts:
+    - family: Amiri
+      fonts:
+        - asset: assets/fonts/Amiri-Regular.ttf

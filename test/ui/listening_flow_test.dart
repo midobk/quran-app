@@ -75,7 +75,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Lock on this ayah'));
+    await tester.tap(find.text('Tap to lock'));
     await tester.pumpAndSettle();
 
     expect(find.text('Live Marker'), findsOneWidget);

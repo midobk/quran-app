@@ -16,7 +16,7 @@ void main() {
     await tester.pumpWidget(const QuranApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Quran Live Ayah'), findsOneWidget);
+    expect(find.text('Quran Listener'), findsOneWidget);
     expect(find.text('Start Listening'), findsOneWidget);
   });
 }

@@ -13,6 +13,7 @@ import '../../services/audio/mic_service.dart';
 import '../../services/database/database_service.dart';
 import '../../services/diagnostics/diagnostics_store.dart';
 import '../../services/search/quran_search_engine.dart';
+import '../../ui/theme/quran_listener_design.dart';
 
 class DiagnosticsScreen extends StatefulWidget {
   const DiagnosticsScreen({super.key});
@@ -173,185 +174,376 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Diagnostics'),
-        actions: <Widget>[IconButton(onPressed: _refreshAll, icon: const Icon(Icons.refresh))],
+      body: QuranListenerBackground(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                child: Row(
+                  children: <Widget>[
+                    QuranListenerIconButton(
+                      size: 40,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Diagnostics', style: Theme.of(context).textTheme.titleLarge),
+                          Text(
+                            'System health & debug info',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    QuranListenerIconButton(
+                      size: 40,
+                      icon: const Icon(Icons.refresh_rounded),
+                      onPressed: _refreshAll,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(child: _buildBody(context)),
+            ],
+          ),
+        ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-          ? Center(child: Text('Diagnostics failed: $_errorMessage'))
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: <Widget>[
-                _buildSectionTitle(context, 'A) Database Health'),
-                _buildDataRow('DB path', _dbPath),
-                _buildDataRow('Ayah count', '$_ayahCount (expected $_expectedAyahCount)'),
-                _buildDataRow('token_index rows', '$_tokenIndexCount'),
-                _buildDataRow(
-                  'translation columns',
-                  'translation_en=$_hasTranslationColumn, surah_name_en=$_hasSurahNameEnColumn',
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Sample ayah (surah 1 ayah 2) Uthmani: $_sampleAyah2Uthmani',
-                  textDirection: TextDirection.rtl,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Sample ayah (surah 1 ayah 2) plain: $_sampleAyah2Plain',
-                  textDirection: TextDirection.rtl,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Sample ayah (surah 1 ayah 2) plain_norm: $_sampleAyah2PlainNorm',
-                  textDirection: TextDirection.rtl,
-                ),
-                _buildDataRow('Sample plain contains "العالمين"', '$_sampleAyah2PlainHasAlamin'),
-                if (_sampleAyah != null) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sample ayah #1: ${_sampleAyah!.textUthmani}',
-                    textDirection: TextDirection.rtl,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _sampleAyah!.translationEn.isEmpty
-                        ? '(translation_en empty)'
-                        : _sampleAyah!.translationEn,
-                    textDirection: TextDirection.ltr,
-                  ),
-                ],
-                const Divider(height: 28),
-                _buildSectionTitle(context, 'B) Model Health (Whisper)'),
-                _buildDataRow('Bundled asset name', _bundledAssetName),
-                _buildDataRow('Local model path', _modelPath),
-                _buildDataRow('Exists', '$_modelExists'),
-                _buildDataRow('File size', '${_modelSizeMb.toStringAsFixed(2)} MB'),
-                _buildDataRow(
-                  'Last init status',
-                  _whisperService.lastInitSuccessful == null
-                      ? 'Not attempted'
-                      : _whisperService.lastInitSuccessful!
-                      ? 'Success'
-                      : 'Failure: ${_whisperService.lastInitError ?? '-'}',
-                ),
-                _buildDataRow(
-                  'Last transcription time',
-                  _whisperService.lastTranscriptionTimeMs == null
-                      ? '-'
-                      : '${_whisperService.lastTranscriptionTimeMs} ms',
-                ),
-                const Divider(height: 28),
-                _buildSectionTitle(context, 'C) Audio Health'),
-                _buildDataRow('Input sample rate', '${_micService.inputSampleRate} Hz'),
-                _buildDataRow(
-                  'Resampling active',
-                  _micService.inputSampleRate == _micService.targetSampleRate ? 'No' : 'Yes',
-                ),
-                _buildDataRow(
-                  'Ring buffer length',
-                  '${_micService.bufferSeconds.toStringAsFixed(2)} s',
-                ),
-                _buildDataRow('Current RMS', _micService.currentRms.toStringAsFixed(5)),
-                _buildDataRow('VAD isSpeech', '${_micService.isSpeech}'),
-                _buildDataRow(
-                  'VAD skip rate (last ${_diagnosticsStore.samplesCount})',
-                  '${_diagnosticsStore.vadSkipRatePercent.toStringAsFixed(1)}%',
-                ),
-                const Divider(height: 28),
-                _buildSectionTitle(context, 'D) Live Tracking Stats'),
-                _buildDataRow(
-                  'Avg whisper latency',
-                  '${_diagnosticsStore.avgWhisperLatencyMs.toStringAsFixed(1)} ms',
-                ),
-                _buildDataRow(
-                  'Avg search latency',
-                  '${_diagnosticsStore.avgSearchLatencyMs.toStringAsFixed(1)} ms',
-                ),
-                _buildDataRow(
-                  '% ticks skipped (VAD)',
-                  '${_diagnosticsStore.vadSkipRatePercent.toStringAsFixed(1)}%',
-                ),
-                _buildDataRow(
-                  '% ticks low confidence',
-                  '${_diagnosticsStore.lowConfidenceRatePercent.toStringAsFixed(1)}%',
-                ),
-                _buildDataRow(
-                  'Current window',
-                  'back=${_diagnosticsStore.windowBack}, forward=${_diagnosticsStore.windowForward}',
-                ),
-                _buildDataRow(
-                  'Current pointer',
-                  _diagnosticsStore.pointerAyahId == null
-                      ? '-'
-                      : '#${_diagnosticsStore.pointerAyahId} • سورة ${_diagnosticsStore.pointerSurahNameAr} • آية ${_diagnosticsStore.pointerAyahNo}',
-                ),
-                const Divider(height: 28),
-                _buildSectionTitle(context, 'E) Search Token Diagnostics'),
-                SwitchListTile(
-                  value: _showTokenFilteringDebug,
-                  title: const Text('Show token filter/mapping details'),
-                  subtitle: const Text('Includes normalized tokens and fuzzy mappings'),
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _showTokenFilteringDebug = value;
-                    });
-                  },
-                ),
-                if (_showTokenFilteringDebug) ..._buildSearchDiagnostics(),
-              ],
-            ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text('Diagnostics failed', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton(onPressed: _refreshAll, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final QuranListenerPalette colors = context.quranPalette;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+      children: <Widget>[
+        _SectionLabel(title: 'Database Health'),
+        _DiagnosticField(
+          label: 'Ayah Count',
+          value: '$_ayahCount / expected $_expectedAyahCount',
+          status: _ayahCount == _expectedAyahCount ? _FieldStatus.ok : _FieldStatus.warn,
+        ),
+        _DiagnosticField(label: 'DB Path', value: _dbPath),
+        _DiagnosticField(label: 'token_index rows', value: '$_tokenIndexCount'),
+        _DiagnosticField(
+          label: 'translation columns',
+          value: 'translation_en=$_hasTranslationColumn, surah_name_en=$_hasSurahNameEnColumn',
+        ),
+        _DiagnosticField(
+          label: 'Sample plain contains "العالمين"',
+          value: '$_sampleAyah2PlainHasAlamin',
+          status: _sampleAyah2PlainHasAlamin ? _FieldStatus.ok : _FieldStatus.warn,
+        ),
+        _DiagnosticField(
+          label: 'Sample (1:2) Uthmani',
+          value: _sampleAyah2Uthmani,
+          monospace: false,
+          textDirection: TextDirection.rtl,
+        ),
+        _DiagnosticField(
+          label: 'Sample (1:2) plain',
+          value: _sampleAyah2Plain,
+          monospace: false,
+          textDirection: TextDirection.rtl,
+        ),
+        _DiagnosticField(
+          label: 'Sample (1:2) plain_norm',
+          value: _sampleAyah2PlainNorm,
+          monospace: false,
+          textDirection: TextDirection.rtl,
+        ),
+        if (_sampleAyah != null)
+          _DiagnosticField(
+            label: 'Sample Ayah #1',
+            value: _sampleAyah!.textUthmani,
+            monospace: false,
+            textDirection: TextDirection.rtl,
+          ),
+        const SizedBox(height: 18),
+        _SectionLabel(title: 'Model Health (Whisper)'),
+        _DiagnosticField(label: 'Bundled asset', value: _bundledAssetName),
+        _DiagnosticField(label: 'Local model path', value: _modelPath),
+        _DiagnosticField(
+          label: 'Model exists',
+          value: '$_modelExists',
+          status: _modelExists ? _FieldStatus.ok : _FieldStatus.error,
+        ),
+        _DiagnosticField(label: 'File size', value: '${_modelSizeMb.toStringAsFixed(2)} MB'),
+        _DiagnosticField(
+          label: 'Last init status',
+          value: _whisperService.lastInitSuccessful == null
+              ? 'Not attempted'
+              : _whisperService.lastInitSuccessful!
+              ? 'Success'
+              : 'Failure: ${_whisperService.lastInitError ?? '-'}',
+          status: _whisperService.lastInitSuccessful == null
+              ? _FieldStatus.neutral
+              : _whisperService.lastInitSuccessful!
+              ? _FieldStatus.ok
+              : _FieldStatus.error,
+        ),
+        _DiagnosticField(
+          label: 'Last transcription',
+          value: _whisperService.lastTranscriptionTimeMs == null
+              ? '-'
+              : '${_whisperService.lastTranscriptionTimeMs} ms',
+        ),
+        const SizedBox(height: 18),
+        _SectionLabel(title: 'Audio Health'),
+        _DiagnosticField(label: 'Input sample rate', value: '${_micService.inputSampleRate} Hz'),
+        _DiagnosticField(
+          label: 'Resampling active',
+          value: _micService.inputSampleRate == _micService.targetSampleRate ? 'No' : 'Yes',
+        ),
+        _DiagnosticField(
+          label: 'Ring buffer length',
+          value: '${_micService.bufferSeconds.toStringAsFixed(2)} s',
+        ),
+        _DiagnosticField(label: 'Current RMS', value: _micService.currentRms.toStringAsFixed(5)),
+        _DiagnosticField(
+          label: 'VAD isSpeech',
+          value: '${_micService.isSpeech}',
+          status: _micService.isSpeech ? _FieldStatus.ok : _FieldStatus.warn,
+        ),
+        _DiagnosticField(
+          label: 'VAD skip rate',
+          value:
+              '${_diagnosticsStore.vadSkipRatePercent.toStringAsFixed(1)}% (last ${_diagnosticsStore.samplesCount})',
+        ),
+        const SizedBox(height: 18),
+        _SectionLabel(title: 'Live Tracking Stats'),
+        _DiagnosticField(
+          label: 'Avg whisper latency',
+          value: '${_diagnosticsStore.avgWhisperLatencyMs.toStringAsFixed(1)} ms',
+        ),
+        _DiagnosticField(
+          label: 'Avg search latency',
+          value: '${_diagnosticsStore.avgSearchLatencyMs.toStringAsFixed(1)} ms',
+        ),
+        _DiagnosticField(
+          label: 'Low confidence ticks',
+          value: '${_diagnosticsStore.lowConfidenceRatePercent.toStringAsFixed(1)}%',
+        ),
+        _DiagnosticField(
+          label: 'Window',
+          value: 'back=${_diagnosticsStore.windowBack}, forward=${_diagnosticsStore.windowForward}',
+        ),
+        _DiagnosticField(
+          label: 'Current pointer',
+          value: _diagnosticsStore.pointerAyahId == null
+              ? '-'
+              : '#${_diagnosticsStore.pointerAyahId} • سورة ${_diagnosticsStore.pointerSurahNameAr} • آية ${_diagnosticsStore.pointerAyahNo}',
+          textDirection: TextDirection.rtl,
+        ),
+        const SizedBox(height: 18),
+        _SectionLabel(title: 'Search Token Diagnostics'),
+        Container(
+          decoration: BoxDecoration(
+            color: colors.bgSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colors.strokeDefault),
+          ),
+          child: SwitchListTile(
+            value: _showTokenFilteringDebug,
+            title: const Text('Show token filter/mapping details'),
+            subtitle: const Text('Includes normalized tokens and fuzzy mappings'),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            onChanged: (bool value) {
+              setState(() {
+                _showTokenFilteringDebug = value;
+              });
+            },
+          ),
+        ),
+        if (_showTokenFilteringDebug) ..._buildSearchDiagnostics(),
+      ],
     );
   }
 
   List<Widget> _buildSearchDiagnostics() {
     final SearchDiagnostics? diagnostics = _searchEngine.lastDiagnostics;
     if (diagnostics == null) {
-      return <Widget>[const Text('No search diagnostics yet. Run a search first.')];
+      return <Widget>[
+        const SizedBox(height: 8),
+        const _DiagnosticField(
+          label: 'Search diagnostics',
+          value: 'No data yet. Run a search first.',
+        ),
+      ];
     }
 
     final TokenFilterDiagnostics filter = diagnostics.tokenFilter;
     final List<Widget> widgets = <Widget>[
-      _buildDataRow('Normalized transcript', diagnostics.normalizedTranscript),
-      _buildDataRow(
-        'Token counts',
-        '${filter.beforeCount} -> ${filter.afterCount} (mapped=${filter.mappedCount}, dropped=${filter.droppedCount})',
+      const SizedBox(height: 8),
+      _DiagnosticField(label: 'Normalized transcript', value: diagnostics.normalizedTranscript),
+      _DiagnosticField(
+        label: 'Token counts',
+        value:
+            '${filter.beforeCount} -> ${filter.afterCount} (mapped=${filter.mappedCount}, dropped=${filter.droppedCount})',
       ),
-      _buildDataRow('Fallback used', '${filter.fallbackUsed}'),
-      _buildDataRow('Filter+map time', '${filter.elapsedMs} ms'),
-      _buildDataRow('Original tokens', filter.originalTokens.join(' | ')),
-      _buildDataRow('Filtered tokens', filter.filteredTokens.join(' | ')),
+      _DiagnosticField(label: 'Fallback used', value: '${filter.fallbackUsed}'),
+      _DiagnosticField(label: 'Filter+map time', value: '${filter.elapsedMs} ms'),
+      _DiagnosticField(label: 'Original tokens', value: filter.originalTokens.join(' | ')),
+      _DiagnosticField(label: 'Filtered tokens', value: filter.filteredTokens.join(' | ')),
     ];
 
     if (filter.mappingPairs.isEmpty) {
-      widgets.add(const Text('Mappings: (none)'));
+      widgets.add(const _DiagnosticField(label: 'Mappings', value: '(none)'));
       return widgets;
     }
 
-    widgets.add(const SizedBox(height: 8));
-    widgets.add(const Text('Mappings'));
     for (final TokenMappingPair mapping in filter.mappingPairs) {
       widgets.add(
-        Text(
-          '${mapping.original} -> ${mapping.mapped} '
-          '(d=${mapping.distance}, c=${mapping.confidence.toStringAsFixed(2)})',
+        _DiagnosticField(
+          label: 'Mapping',
+          value:
+              '${mapping.original} -> ${mapping.mapped} (d=${mapping.distance}, c=${mapping.confidence.toStringAsFixed(2)})',
           textDirection: TextDirection.rtl,
         ),
       );
     }
     return widgets;
   }
+}
 
-  Widget _buildSectionTitle(BuildContext context, String title) {
+enum _FieldStatus { ok, warn, error, neutral }
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+      child: Text(
+        title.toUpperCase(),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          letterSpacing: 1.1,
+        ),
+      ),
     );
   }
+}
 
-  Widget _buildDataRow(String label, String value) {
-    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('$label: $value'));
+class _DiagnosticField extends StatelessWidget {
+  const _DiagnosticField({
+    required this.label,
+    required this.value,
+    this.status = _FieldStatus.neutral,
+    this.monospace = true,
+    this.textDirection,
+  });
+
+  final String label;
+  final String value;
+  final _FieldStatus status;
+  final bool monospace;
+  final TextDirection? textDirection;
+
+  @override
+  Widget build(BuildContext context) {
+    final QuranListenerPalette colors = context.quranPalette;
+    final Color statusColor = switch (status) {
+      _FieldStatus.ok => QuranListenerColors.statusHigh,
+      _FieldStatus.warn => QuranListenerColors.statusMedium,
+      _FieldStatus.error => QuranListenerColors.statusLow,
+      _FieldStatus.neutral => colors.textSecondary,
+    };
+
+    final String? statusLabel = switch (status) {
+      _FieldStatus.ok => 'OK',
+      _FieldStatus.warn => 'Warning',
+      _FieldStatus.error => 'Error',
+      _FieldStatus.neutral => null,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.bgSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: colors.strokeDefault),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    label.toUpperCase(),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(letterSpacing: 0.9),
+                  ),
+                ),
+                if (statusLabel != null)
+                  Row(
+                    children: <Widget>[
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        statusLabel,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: statusColor),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              textDirection: textDirection,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colors.textPrimary,
+                fontFamily: monospace ? 'Courier' : null,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
