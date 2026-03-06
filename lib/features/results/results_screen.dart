@@ -21,6 +21,7 @@ class ResultsScreen extends StatefulWidget {
     this.autoLockConfig,
     this.liveScreenBuilder,
     this.settingsService,
+    this.recommendedAyahId,
   });
 
   final String transcript;
@@ -28,6 +29,7 @@ class ResultsScreen extends StatefulWidget {
   final SearchConfig? autoLockConfig;
   final Widget Function(SearchResult result)? liveScreenBuilder;
   final AppSettingsService? settingsService;
+  final int? recommendedAyahId;
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
@@ -35,19 +37,38 @@ class ResultsScreen extends StatefulWidget {
 
 class _ResultsScreenState extends State<ResultsScreen> {
   final ArabicNormalizer _normalizer = const ArabicNormalizer();
+  late final List<SearchResult> _orderedResults;
   late final AppSettingsService _settingsService;
   late final ResultsController _controller;
+
+  List<SearchResult> _orderResults(List<SearchResult> input) {
+    final int? recommendedAyahId = widget.recommendedAyahId;
+    if (recommendedAyahId == null) {
+      return input;
+    }
+
+    final int recommendedIndex = input.indexWhere((SearchResult result) => result.ayah.id == recommendedAyahId);
+    if (recommendedIndex <= 0) {
+      return input;
+    }
+
+    final List<SearchResult> reordered = List<SearchResult>.from(input);
+    final SearchResult recommended = reordered.removeAt(recommendedIndex);
+    reordered.insert(0, recommended);
+    return reordered;
+  }
 
   @override
   void initState() {
     super.initState();
+    _orderedResults = _orderResults(widget.results);
     _settingsService =
         widget.settingsService ??
         (serviceLocator.isRegistered<AppSettingsService>()
             ? serviceLocator<AppSettingsService>()
             : AppSettingsService());
     _controller = ResultsController(
-      results: widget.results,
+      results: _orderedResults,
       autoLockConfig: widget.autoLockConfig ?? searchConfigFromSettings(_settingsService.settings),
     );
 
@@ -66,6 +87,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     _controller.dispose();
     super.dispose();
   }
+
+  List<SearchResult> get _displayResults => _orderedResults;
 
   Future<void> _openLiveScreen(SearchResult result, {required bool triggerAd}) async {
     if (!mounted) {
@@ -149,7 +172,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${widget.results.length} matches found',
+                                '${_displayResults.length} matches found',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -181,6 +204,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         ),
                       ),
                     ),
+                  if (widget.recommendedAyahId != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          'Recommended lock: Ayah ${widget.recommendedAyahId}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_controller.autoLockMessage != null)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
@@ -204,11 +241,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                            itemCount: widget.results.length,
+                            itemCount: _displayResults.length,
                             separatorBuilder: (BuildContext context, int index) =>
                                 const SizedBox(height: 10),
                             itemBuilder: (BuildContext context, int index) {
-                              final SearchResult result = widget.results[index];
+                              final SearchResult result = _displayResults[index];
                               return _ResultCard(
                                 normalizer: _normalizer,
                                 result: result,

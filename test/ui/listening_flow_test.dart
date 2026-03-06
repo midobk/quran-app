@@ -33,7 +33,16 @@ void main() {
         transcribeCalls++;
         return 'الله نور السماوات';
       },
-      searchGlobal: (String transcript) async => <SearchResult>[_sampleResult()],
+      anchorValidate: (String transcript) async => InitialLockComputation(
+        anchorCandidates: <SearchResult>[_sampleResult()],
+        lock: const InitialLockResult(
+          ayahId: 3,
+          likelyNextAyahId: null,
+          score: 1.6,
+          debugScores: <String, double>{'start': 1.0, 'mid': 1.6, 'end': 0.8},
+          selectedPath: '3',
+        ),
+      ),
       ensureSeedData: () async {},
       warmupDuration: const Duration(seconds: 2),
     );
@@ -91,7 +100,16 @@ void main() {
       stopMic: () async {},
       getLastSecondsPcm16k: (_) => Float32List.fromList(List<double>.filled(16000, 0)),
       transcribe: (_) => transcribeCompleter.future,
-      searchGlobal: (String transcript) async => <SearchResult>[_sampleResult()],
+      anchorValidate: (String transcript) async => InitialLockComputation(
+        anchorCandidates: <SearchResult>[_sampleResult()],
+        lock: const InitialLockResult(
+          ayahId: 3,
+          likelyNextAyahId: null,
+          score: 1.6,
+          debugScores: <String, double>{'start': 1.0, 'mid': 1.6, 'end': 0.8},
+          selectedPath: '3',
+        ),
+      ),
       ensureSeedData: () async {},
       warmupDuration: const Duration(seconds: 1),
     );

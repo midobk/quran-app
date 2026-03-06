@@ -64,7 +64,7 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
           previewTranscribe: _transcribeWithWhisper,
           prepareForTranscription: _prepareWhisper,
           transcribe: _transcribeWithWhisper,
-          searchGlobal: serviceLocator<QuranSearchEngine>().searchGlobal,
+          anchorValidate: serviceLocator<QuranSearchEngine>().anchorValidate,
           ensureSeedData: serviceLocator<QuranRepository>().ensureDevSeedDataIfEmpty,
           warmupDuration: widget.warmupDuration,
           previewChunkSeconds: 1.2,
@@ -108,20 +108,31 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
     return whisperService.transcribe(pcm16k, lang: 'ar');
   }
 
-  SearchResult? _resolveAutoLockCandidate(List<SearchResult> results, SearchConfig config) {
-    if (!_settingsService.settings.autoDetectAyah || results.isEmpty) {
+  SearchResult? _resolveAutoLockCandidate(WarmupOutcome outcome, SearchConfig config) {
+    if (!_settingsService.settings.autoDetectAyah || outcome.results.isEmpty) {
       return null;
     }
 
-    final SearchResult top = results.first;
-    if (results.length == 1) {
-      return top.score >= config.autoLockMinScore ? top : null;
+    final InitialLockResult? lock = outcome.initialLock;
+    if (lock == null) {
+      return null;
     }
 
-    final SearchResult second = results[1];
-    final double margin = top.score - second.score;
-    if (top.score >= config.autoLockMinScore && margin >= config.autoLockMinMargin) {
-      return top;
+    final SearchResult? recommended = outcome.results
+        .cast<SearchResult?>()
+        .firstWhere((SearchResult? result) => result?.ayah.id == lock.ayahId, orElse: () => null);
+    if (recommended == null) {
+      return null;
+    }
+
+    final double secondScore = outcome.results
+        .where((SearchResult result) => result.ayah.id != lock.ayahId)
+        .map((SearchResult result) => result.score)
+        .fold<double>(0, (double a, double b) => math.max(a, b));
+    final double margin = lock.score - secondScore;
+
+    if (lock.score >= config.autoLockMinScore && margin >= config.autoLockMinMargin) {
+      return recommended;
     }
 
     return null;
@@ -137,7 +148,7 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
       final SearchConfig effectiveAutoLockConfig =
           widget.autoLockConfig ?? searchConfigFromSettings(_settingsService.settings);
       final SearchResult? autoLockCandidate = _resolveAutoLockCandidate(
-        outcome.results,
+        outcome,
         effectiveAutoLockConfig,
       );
       final Widget destination;
@@ -158,6 +169,7 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
               results: outcome.results,
               autoLockConfig: effectiveAutoLockConfig,
               settingsService: _settingsService,
+              recommendedAyahId: outcome.initialLock?.ayahId,
             );
       }
       await Navigator.of(
