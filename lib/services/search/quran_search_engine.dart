@@ -96,6 +96,29 @@ class SearchDiagnostics {
   final TokenFilterDiagnostics tokenFilter;
 }
 
+class InitialLockResult {
+  const InitialLockResult({
+    required this.ayahId,
+    required this.likelyNextAyahId,
+    required this.score,
+    required this.debugScores,
+    required this.selectedPath,
+  });
+
+  final int ayahId;
+  final int? likelyNextAyahId;
+  final double score;
+  final Map<String, double> debugScores;
+  final String selectedPath;
+}
+
+class InitialLockComputation {
+  const InitialLockComputation({required this.anchorCandidates, required this.lock});
+
+  final List<SearchResult> anchorCandidates;
+  final InitialLockResult? lock;
+}
+
 class QuranSearchEngine {
   QuranSearchEngine({
     required QuranRepository repository,
@@ -121,6 +144,130 @@ class QuranSearchEngine {
 
   Future<List<SearchResult>> searchGlobal(String transcript, {SearchConfig? config}) {
     return _searchInternal(transcript, config: config ?? const SearchConfig());
+  }
+
+  Future<InitialLockComputation> anchorValidate(
+    String transcript, {
+    SearchConfig? config,
+    int anchorTopN = 8,
+  }) async {
+    final SearchConfig effectiveConfig = config ?? const SearchConfig();
+    final String normalizedTranscript = _normalizer.normalize(transcript);
+    final List<String> transcriptTokens = _normalizer.tokenize(normalizedTranscript);
+    if (transcriptTokens.isEmpty) {
+      return const InitialLockComputation(anchorCandidates: <SearchResult>[], lock: null);
+    }
+
+    await _vocabService.init();
+    await _vocabService.refreshIfStale();
+    await _vocabMatcher.init();
+
+    final TokenFilterResult filterResult = await filterAndMapTokens(transcriptTokens);
+    final List<String> effectiveTokens = filterResult.finalTokens;
+    if (effectiveTokens.isEmpty) {
+      return const InitialLockComputation(anchorCandidates: <SearchResult>[], lock: null);
+    }
+
+    final _WindowSlices windows = _buildWindows(effectiveTokens);
+    _logger.info(
+      'Anchor+Validate token windows: total=${effectiveTokens.length}, '
+      'start=${windows.start.length}, mid=${windows.mid.length}, end=${windows.end.length}',
+    );
+
+    final String midQuery = windows.mid.join(' ');
+    final List<SearchResult> anchorCandidates = await searchGlobal(
+      midQuery,
+      config: effectiveConfig,
+    );
+    final List<SearchResult> topAnchors = anchorCandidates.take(math.max(1, anchorTopN)).toList();
+    if (topAnchors.isEmpty) {
+      return const InitialLockComputation(anchorCandidates: <SearchResult>[], lock: null);
+    }
+
+    final Map<int, AyahRow> ayahCache = <int, AyahRow>{};
+    final Set<int> missingAyahIds = <int>{};
+    _PathEvaluation? bestEvaluation;
+    final Map<int, double> bestEndWithoutNextByAnchor = <int, double>{};
+
+    for (final SearchResult anchor in topAnchors) {
+      final int anchorId = anchor.ayah.id;
+      ayahCache[anchorId] = anchor.ayah;
+      final bool hasPrevious = anchorId > 1
+          ? await _cacheAyahIfPresent(anchorId - 1, ayahCache, missingAyahIds)
+          : false;
+      final bool hasNext = await _cacheAyahIfPresent(anchorId + 1, ayahCache, missingAyahIds);
+      final List<List<int>> paths = <List<int>>[
+        <int>[anchorId],
+        if (hasNext) <int>[anchorId, anchorId + 1],
+        if (hasPrevious) <int>[anchorId - 1, anchorId],
+        if (hasPrevious && hasNext) <int>[anchorId - 1, anchorId, anchorId + 1],
+      ];
+
+      for (final List<int> path in paths) {
+        final List<String> virtualTokens = await _buildVirtualTokens(path, ayahCache);
+        if (virtualTokens.isEmpty) {
+          continue;
+        }
+
+        final double startScore = _scoreWindow(windows.start, virtualTokens);
+        final double midScore = _scoreWindow(windows.mid, virtualTokens);
+        final double endScore = _scoreWindow(windows.end, virtualTokens);
+        final double finalScore = (0.50 * midScore) + (0.25 * startScore) + (0.25 * endScore);
+
+        if (!path.contains(anchorId + 1)) {
+          final double existing = bestEndWithoutNextByAnchor[anchorId] ?? -1;
+          if (endScore > existing) {
+            bestEndWithoutNextByAnchor[anchorId] = endScore;
+          }
+        }
+
+        final _PathEvaluation current = _PathEvaluation(
+          anchorId: anchorId,
+          path: path,
+          startScore: startScore,
+          midScore: midScore,
+          endScore: endScore,
+          finalScore: finalScore,
+        );
+        if (bestEvaluation == null || current.finalScore > bestEvaluation.finalScore) {
+          bestEvaluation = current;
+        }
+      }
+    }
+
+    if (bestEvaluation == null) {
+      return InitialLockComputation(anchorCandidates: topAnchors, lock: null);
+    }
+
+    final bool includesNext = bestEvaluation.path.contains(bestEvaluation.anchorId + 1);
+    final double bestEndWithoutNext = bestEndWithoutNextByAnchor[bestEvaluation.anchorId] ?? 0;
+    final bool strongEndSupport = bestEvaluation.endScore >= bestEndWithoutNext + 0.15;
+    final int? likelyNextAyahId = includesNext && strongEndSupport
+        ? bestEvaluation.anchorId + 1
+        : null;
+
+    _logger.info(
+      'Anchor+Validate selected path=${bestEvaluation.path.join("->")} '
+      'scores(start=${bestEvaluation.startScore.toStringAsFixed(3)}, '
+      'mid=${bestEvaluation.midScore.toStringAsFixed(3)}, '
+      'end=${bestEvaluation.endScore.toStringAsFixed(3)}, '
+      'final=${bestEvaluation.finalScore.toStringAsFixed(3)})',
+    );
+
+    return InitialLockComputation(
+      anchorCandidates: topAnchors,
+      lock: InitialLockResult(
+        ayahId: bestEvaluation.anchorId,
+        likelyNextAyahId: likelyNextAyahId,
+        score: bestEvaluation.finalScore,
+        selectedPath: bestEvaluation.path.join('->'),
+        debugScores: <String, double>{
+          'start': bestEvaluation.startScore,
+          'mid': bestEvaluation.midScore,
+          'end': bestEvaluation.endScore,
+        },
+      ),
+    );
   }
 
   Future<List<SearchResult>> searchNear(
@@ -656,6 +803,127 @@ class QuranSearchEngine {
 
     return first.score >= config.autoLockMinScore && margin >= config.autoLockMinMargin;
   }
+
+  _WindowSlices _buildWindows(List<String> tokens) {
+    if (tokens.isEmpty) {
+      return const _WindowSlices(start: <String>[], mid: <String>[], end: <String>[]);
+    }
+
+    final int baseCount = (tokens.length * 0.35).round();
+    final int minCount = tokens.length >= 12 ? 4 : 1;
+    final int windowCount = baseCount.clamp(minCount, tokens.length).toInt();
+
+    final List<String> start = tokens.sublist(0, windowCount);
+    final int midStart = ((tokens.length - windowCount) / 2).floor();
+    final List<String> mid = tokens.sublist(midStart, midStart + windowCount);
+    final List<String> end = tokens.sublist(tokens.length - windowCount);
+
+    return _WindowSlices(start: start, mid: mid, end: end);
+  }
+
+  Future<bool> _cacheAyahIfPresent(
+    int ayahId,
+    Map<int, AyahRow> ayahCache,
+    Set<int> missingAyahIds,
+  ) async {
+    if (ayahId < 1) {
+      return false;
+    }
+    if (ayahCache.containsKey(ayahId)) {
+      return true;
+    }
+    if (missingAyahIds.contains(ayahId)) {
+      return false;
+    }
+
+    final AyahRow? ayah = await _repository.getAyahById(ayahId);
+    if (ayah == null) {
+      missingAyahIds.add(ayahId);
+      return false;
+    }
+
+    ayahCache[ayahId] = ayah;
+    return true;
+  }
+
+  Future<List<String>> _buildVirtualTokens(List<int> ayahIds, Map<int, AyahRow> ayahCache) async {
+    final List<int> missingIds = ayahIds.where((int id) => !ayahCache.containsKey(id)).toList();
+    if (missingIds.isNotEmpty) {
+      final List<AyahRow> ayahs = await _repository.getAyahsByIds(missingIds);
+      for (final AyahRow ayah in ayahs) {
+        ayahCache[ayah.id] = ayah;
+      }
+    }
+
+    final List<String> virtualTokens = <String>[];
+    for (final int id in ayahIds) {
+      final AyahRow? ayah = ayahCache[id];
+      if (ayah == null) {
+        continue;
+      }
+      final String source = ayah.searchTextNorm;
+      virtualTokens.addAll(_normalizer.tokenize(source));
+    }
+    return virtualTokens;
+  }
+
+  double _scoreWindow(List<String> windowTokens, List<String> virtualTokens) {
+    if (windowTokens.isEmpty || virtualTokens.isEmpty) {
+      return 0;
+    }
+
+    final List<double> windowWeights = List<double>.filled(windowTokens.length, 1.0);
+    final int startN = math.min(5, windowTokens.length);
+    double bestScore = 0;
+
+    for (int n = startN; n >= 1; n--) {
+      final List<_WeightedNgram> ngrams = _buildContiguousNgrams(
+        tokens: windowTokens,
+        tokenWeights: windowWeights,
+        n: n,
+      );
+      for (final _WeightedNgram ngram in ngrams) {
+        final _MatchScore score = _scoreMatch(
+          ayahTokens: virtualTokens,
+          queryTokens: windowTokens,
+          queryWeights: windowWeights,
+          ngramTokens: ngram.tokens,
+          n: n,
+        );
+        if (score.score > bestScore) {
+          bestScore = score.score;
+        }
+      }
+    }
+
+    return bestScore;
+  }
+}
+
+class _WindowSlices {
+  const _WindowSlices({required this.start, required this.mid, required this.end});
+
+  final List<String> start;
+  final List<String> mid;
+  final List<String> end;
+}
+
+class _PathEvaluation {
+  const _PathEvaluation({
+    required this.anchorId,
+    required this.path,
+    required this.startScore,
+    required this.midScore,
+    required this.endScore,
+    required this.finalScore,
+  });
+
+  final int anchorId;
+  final List<int> path;
+  final double startScore;
+  final double midScore;
+  final double endScore;
+  final double finalScore;
 }
 
 class _NgramCandidateSet {
