@@ -7,10 +7,15 @@ import '../../services/diagnostics/diagnostics_store.dart';
 import '../../services/search/quran_search_engine.dart';
 
 class WarmupOutcome {
-  const WarmupOutcome({required this.transcript, required this.results});
+  const WarmupOutcome({
+    required this.transcript,
+    required this.results,
+    required this.initialLock,
+  });
 
   final String transcript;
   final List<SearchResult> results;
+  final InitialLockResult? initialLock;
 }
 
 class ListeningWarmupController extends ChangeNotifier {
@@ -21,7 +26,7 @@ class ListeningWarmupController extends ChangeNotifier {
     required Future<String> Function(Float32List pcm16k) transcribe,
     Future<String> Function(Float32List pcm16k)? previewTranscribe,
     Future<void> Function()? prepareForTranscription,
-    required Future<List<SearchResult>> Function(String transcript) searchGlobal,
+    required Future<InitialLockComputation> Function(String transcript) anchorValidate,
     required Future<void> Function() ensureSeedData,
     this.warmupDuration = const Duration(seconds: 10),
     this.previewChunkSeconds = 2.5,
@@ -36,7 +41,7 @@ class ListeningWarmupController extends ChangeNotifier {
        _transcribe = transcribe,
        _previewTranscribe = previewTranscribe,
        _prepareForTranscription = prepareForTranscription,
-       _searchGlobal = searchGlobal,
+       _anchorValidate = anchorValidate,
        _ensureSeedData = ensureSeedData,
        _logger = logger ?? const AppLogger(),
        _diagnosticsStore = diagnosticsStore {
@@ -51,7 +56,7 @@ class ListeningWarmupController extends ChangeNotifier {
   final Future<String> Function(Float32List pcm16k) _transcribe;
   final Future<String> Function(Float32List pcm16k)? _previewTranscribe;
   final Future<void> Function()? _prepareForTranscription;
-  final Future<List<SearchResult>> Function(String transcript) _searchGlobal;
+  final Future<InitialLockComputation> Function(String transcript) _anchorValidate;
   final Future<void> Function() _ensureSeedData;
   final AppLogger _logger;
   final DiagnosticsStore? _diagnosticsStore;
@@ -131,18 +136,22 @@ class ListeningWarmupController extends ChangeNotifier {
       }
 
       final Stopwatch searchStopwatch = Stopwatch()..start();
-      final List<SearchResult> results = await _searchGlobal(trimmedTranscript).timeout(
+      final InitialLockComputation lockComputation = await _anchorValidate(trimmedTranscript).timeout(
         searchTimeout,
         onTimeout: () => throw const WarmupFailure(couldNotDetectRecitationMessage),
       );
       searchStopwatch.stop();
       _diagnosticsStore?.recordSearchLatencyMs(searchStopwatch.elapsedMilliseconds);
-      _logger.info('Warmup search results: ${results.length}');
+      _logger.info('Warmup search results: ${lockComputation.anchorCandidates.length}');
 
       _isRunning = false;
       _isProcessing = false;
       notifyListeners();
-      return WarmupOutcome(transcript: trimmedTranscript, results: results);
+      return WarmupOutcome(
+        transcript: trimmedTranscript,
+        results: lockComputation.anchorCandidates,
+        initialLock: lockComputation.lock,
+      );
     } catch (error) {
       _logger.warning('Warmup pipeline failed: $error');
       _isRunning = false;

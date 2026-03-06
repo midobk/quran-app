@@ -185,22 +185,29 @@ class QuranSearchEngine {
     }
 
     final Map<int, AyahRow> ayahCache = <int, AyahRow>{};
-    final Set<int> missingAyahIds = <int>{};
     _PathEvaluation? bestEvaluation;
     final Map<int, double> bestEndWithoutNextByAnchor = <int, double>{};
 
     for (final SearchResult anchor in topAnchors) {
-      final int anchorId = anchor.ayah.id;
-      ayahCache[anchorId] = anchor.ayah;
-      final bool hasPrevious = anchorId > 1
-          ? await _cacheAyahIfPresent(anchorId - 1, ayahCache, missingAyahIds)
-          : false;
-      final bool hasNext = await _cacheAyahIfPresent(anchorId + 1, ayahCache, missingAyahIds);
+      final AyahRow anchorAyah = anchor.ayah;
+      final int anchorId = anchorAyah.id;
+      ayahCache[anchorId] = anchorAyah;
+
+      final AyahRow? previousAyah = await _repository.getPreviousAyah(anchorAyah);
+      if (previousAyah != null) {
+        ayahCache[previousAyah.id] = previousAyah;
+      }
+
+      final AyahRow? nextAyah = await _repository.getNextAyah(anchorAyah);
+      if (nextAyah != null) {
+        ayahCache[nextAyah.id] = nextAyah;
+      }
+
       final List<List<int>> paths = <List<int>>[
         <int>[anchorId],
-        if (hasNext) <int>[anchorId, anchorId + 1],
-        if (hasPrevious) <int>[anchorId - 1, anchorId],
-        if (hasPrevious && hasNext) <int>[anchorId - 1, anchorId, anchorId + 1],
+        if (nextAyah != null) <int>[anchorId, nextAyah.id],
+        if (previousAyah != null) <int>[previousAyah.id, anchorId],
+        if (previousAyah != null && nextAyah != null) <int>[previousAyah.id, anchorId, nextAyah.id],
       ];
 
       for (final List<int> path in paths) {
@@ -214,7 +221,8 @@ class QuranSearchEngine {
         final double endScore = _scoreWindow(windows.end, virtualTokens);
         final double finalScore = (0.50 * midScore) + (0.25 * startScore) + (0.25 * endScore);
 
-        if (!path.contains(anchorId + 1)) {
+        final bool includesNextAyah = nextAyah != null && path.contains(nextAyah.id);
+        if (!includesNextAyah) {
           final double existing = bestEndWithoutNextByAnchor[anchorId] ?? -1;
           if (endScore > existing) {
             bestEndWithoutNextByAnchor[anchorId] = endScore;
@@ -224,6 +232,7 @@ class QuranSearchEngine {
         final _PathEvaluation current = _PathEvaluation(
           anchorId: anchorId,
           path: path,
+          nextAyahId: nextAyah?.id,
           startScore: startScore,
           midScore: midScore,
           endScore: endScore,
@@ -239,12 +248,12 @@ class QuranSearchEngine {
       return InitialLockComputation(anchorCandidates: topAnchors, lock: null);
     }
 
-    final bool includesNext = bestEvaluation.path.contains(bestEvaluation.anchorId + 1);
+    final int? nextAyahId = bestEvaluation.nextAyahId;
+    final bool includesNext = nextAyahId != null && bestEvaluation.path.contains(nextAyahId);
     final double bestEndWithoutNext = bestEndWithoutNextByAnchor[bestEvaluation.anchorId] ?? 0;
-    final bool strongEndSupport = bestEvaluation.endScore >= bestEndWithoutNext + 0.15;
-    final int? likelyNextAyahId = includesNext && strongEndSupport
-        ? bestEvaluation.anchorId + 1
-        : null;
+    final bool strongEndSupport =
+        includesNext && bestEvaluation.endScore >= bestEndWithoutNext + 0.15;
+    final int? likelyNextAyahId = strongEndSupport ? nextAyahId : null;
 
     _logger.info(
       'Anchor+Validate selected path=${bestEvaluation.path.join("->")} '
@@ -821,31 +830,6 @@ class QuranSearchEngine {
     return _WindowSlices(start: start, mid: mid, end: end);
   }
 
-  Future<bool> _cacheAyahIfPresent(
-    int ayahId,
-    Map<int, AyahRow> ayahCache,
-    Set<int> missingAyahIds,
-  ) async {
-    if (ayahId < 1) {
-      return false;
-    }
-    if (ayahCache.containsKey(ayahId)) {
-      return true;
-    }
-    if (missingAyahIds.contains(ayahId)) {
-      return false;
-    }
-
-    final AyahRow? ayah = await _repository.getAyahById(ayahId);
-    if (ayah == null) {
-      missingAyahIds.add(ayahId);
-      return false;
-    }
-
-    ayahCache[ayahId] = ayah;
-    return true;
-  }
-
   Future<List<String>> _buildVirtualTokens(List<int> ayahIds, Map<int, AyahRow> ayahCache) async {
     final List<int> missingIds = ayahIds.where((int id) => !ayahCache.containsKey(id)).toList();
     if (missingIds.isNotEmpty) {
@@ -912,6 +896,7 @@ class _PathEvaluation {
   const _PathEvaluation({
     required this.anchorId,
     required this.path,
+    required this.nextAyahId,
     required this.startScore,
     required this.midScore,
     required this.endScore,
@@ -920,6 +905,7 @@ class _PathEvaluation {
 
   final int anchorId;
   final List<int> path;
+  final int? nextAyahId;
   final double startScore;
   final double midScore;
   final double endScore;

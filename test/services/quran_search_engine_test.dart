@@ -177,6 +177,39 @@ void main() {
     final int ayah5Index = results.indexWhere((SearchResult result) => result.ayah.id == 5);
     expect(ayah5Index, greaterThan(0));
   });
+
+  test('anchorValidate picks A and likelyNextAyahId when transcript spans A to A+1', () async {
+    final InitialLockComputation result = await harness.engine.anchorValidate(
+      'ثابت بداية الاية المحورية كلمات مشتركة انتقال واضح تمام تكملة الاية التالية نهاية قوية',
+    );
+
+    expect(result.lock, isNotNull);
+    expect(result.lock!.ayahId, 20);
+    expect(result.lock!.likelyNextAyahId, 21);
+  });
+
+  test('anchorValidate picks A when transcript starts in A-1 and ends in A', () async {
+    final InitialLockComputation result = await harness.engine.anchorValidate(
+      'تمهيد سابق ثم دخول الاية المحورية كلمات مشتركة انتقال واضح تمام',
+    );
+
+    expect(result.lock, isNotNull);
+    expect(result.lock!.ayahId, 20);
+  });
+
+  test(
+    'anchorValidate uses Quran-order next ayah across sparse ids and surah boundaries',
+    () async {
+      final InitialLockComputation result = await harness.engine.anchorValidate(
+        'مدخل تمهيد ثابت ختام السورة المحورية عبور واضح بداية السورة التالية امتداد مؤكد',
+      );
+
+      expect(result.lock, isNotNull);
+      expect(result.lock!.ayahId, 40);
+      expect(result.lock!.likelyNextAyahId, 99);
+      expect(result.lock!.selectedPath, '40->99');
+    },
+  );
 }
 
 Future<_SearchHarness> _createHarness() async {
@@ -244,6 +277,33 @@ Future<void> _seedAyahs(DatabaseService databaseService) async {
     _ayah(10, 24, 35, 'النور', 'نور على نور', 'نور على نور'),
     _ayah(11, 74, 3, 'المدثر', 'الله اكبر كبيرا', 'الله اكبر كبيرا'),
     _ayah(12, 12, 64, 'يوسف', 'ولا غالب الا الله', 'ولا غالب الا الله'),
+    _ayah(
+      20,
+      50,
+      1,
+      'ق',
+      'الاية المحورية كلمات مشتركة انتقال واضح تمام',
+      'الاية المحورية كلمات مشتركة انتقال واضح تمام',
+    ),
+    _ayah(21, 50, 2, 'ق', 'تكملة الاية التالية نهاية قوية', 'تكملة الاية التالية نهاية قوية'),
+    _ayah(22, 50, 3, 'ق', 'نص لاحق مختلف تماما', 'نص لاحق مختلف تماما'),
+    _ayah(
+      40,
+      112,
+      4,
+      'الإخلاص',
+      'ختام السورة المحورية عبور واضح',
+      'ختام السورة المحورية عبور واضح',
+    ),
+    _ayah(41, 2, 255, 'البقرة', 'id التالي لكنه غير مجاور', 'id التالي لكنه غير مجاور'),
+    _ayah(
+      99,
+      113,
+      1,
+      'الفلق',
+      'بداية السورة التالية امتداد مؤكد',
+      'بداية السورة التالية امتداد مؤكد',
+    ),
   ];
 
   final batch = databaseService.db.batch();

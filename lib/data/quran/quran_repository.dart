@@ -94,6 +94,22 @@ class QuranRepository {
     return AyahRow.fromMap(rows.first);
   }
 
+  Future<AyahRow?> getPreviousAyah(AyahRow ayah) {
+    return _getAdjacentAyah(
+      where: '(surah_no < ?) OR (surah_no = ? AND ayah_no < ?)',
+      whereArgs: <Object?>[ayah.surahNo, ayah.surahNo, ayah.ayahNo],
+      orderBy: 'surah_no DESC, ayah_no DESC, id DESC',
+    );
+  }
+
+  Future<AyahRow?> getNextAyah(AyahRow ayah) {
+    return _getAdjacentAyah(
+      where: '(surah_no > ?) OR (surah_no = ? AND ayah_no > ?)',
+      whereArgs: <Object?>[ayah.surahNo, ayah.surahNo, ayah.ayahNo],
+      orderBy: 'surah_no ASC, ayah_no ASC, id ASC',
+    );
+  }
+
   Future<int> getAyahCount() async {
     await _databaseService.init();
     final Database database = _databaseService.db;
@@ -163,6 +179,25 @@ class QuranRepository {
 
   Future<void> rebuildIndex({required void Function(IndexProgress progress) onProgress}) {
     return _indexBuilder.rebuild(onProgress: onProgress);
+  }
+
+  Future<AyahRow?> _getAdjacentAyah({
+    required String where,
+    required List<Object?> whereArgs,
+    required String orderBy,
+  }) async {
+    await _databaseService.init();
+    final Database database = _databaseService.db;
+
+    final List<Map<String, Object?>> rows = await database.query(
+      'ayah',
+      columns: _ayahColumns,
+      where: where,
+      whereArgs: whereArgs,
+      orderBy: orderBy,
+      limit: 1,
+    );
+    return rows.isEmpty ? null : AyahRow.fromMap(rows.first);
   }
 
   _QueryFilter _buildTokenIndexWhere({required String token, int? minAyahId, int? maxAyahId}) {
