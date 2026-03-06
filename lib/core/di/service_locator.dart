@@ -10,10 +10,12 @@ import '../../services/asr/model_manager.dart';
 import '../../services/asr/whisper_cpp_service.dart';
 import '../../services/audio/mic_service.dart';
 import '../../services/database/database_service.dart';
+import '../../services/device/screen_awake_service.dart';
 import '../../services/diagnostics/diagnostics_store.dart';
 import '../../services/search/quran_search_engine.dart';
 import '../../services/search/vocab_matcher.dart';
 import '../../services/search/vocab_service.dart';
+import '../../services/settings/app_settings_service.dart';
 import '../../services/theme/theme_service.dart';
 import '../logging/app_logger.dart';
 import '../navigation/app_router.dart';
@@ -56,6 +58,15 @@ Future<void> setupDependencies({bool useStubAds = false}) async {
   serviceLocator.registerLazySingleton<ThemeService>(
     () => ThemeService(logger: serviceLocator<AppLogger>()),
   );
+  serviceLocator.registerLazySingleton<ScreenAwakeService>(
+    () => ScreenAwakeService(logger: serviceLocator<AppLogger>()),
+  );
+  serviceLocator.registerLazySingleton<AppSettingsService>(
+    () => AppSettingsService(
+      logger: serviceLocator<AppLogger>(),
+      screenAwakeService: serviceLocator<ScreenAwakeService>(),
+    ),
+  );
   serviceLocator.registerLazySingleton<DatabaseService>(
     DatabaseService.new,
     dispose: (DatabaseService service) => service.dispose(),
@@ -79,6 +90,7 @@ Future<void> setupDependencies({bool useStubAds = false}) async {
   );
 
   await serviceLocator<ThemeService>().init();
+  await serviceLocator<AppSettingsService>().init();
   await serviceLocator<AdsService>().init();
 }
 

@@ -97,28 +97,12 @@ else
   print_info '  sudo xcodebuild -runFirstLaunch'
 fi
 
-if [[ -d '/Applications/Xcode.app' ]]; then
-  print_ok 'Full Xcode app detected at /Applications/Xcode.app'
-else
-  print_warn 'Full Xcode.app not found in /Applications.'
-  print_info 'Install the full Xcode app from the App Store (CLI tools alone are not enough for iOS builds).'
-fi
-
 if has_cmd pod; then
   print_ok 'CocoaPods found on PATH.'
   pod --version || true
 else
   print_warn 'CocoaPods not found.'
   print_info 'Install CocoaPods (example): brew install cocoapods'
-fi
-
-available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
-if [[ -n "${available_kb}" ]] && [[ "${available_kb}" -lt 15728640 ]]; then
-  print_warn 'Less than 15GB free disk space detected.'
-  print_info 'Flutter iOS artifacts and Xcode builds can fail with "No space left on device".'
-  print_info 'Free up disk space, then retry flutter build/run.'
-else
-  print_ok 'Disk space check passed for iOS tooling.'
 fi
 
 print_section 'Common Environment Hints'
@@ -139,7 +123,6 @@ print_info '  flutter analyze'
 print_info '  flutter test'
 print_info '  flutter run'
 print_info '  flutter run -d ios'
-print_info '  (first iOS build) cd ios && pod install && cd ..'
 
 if [[ "$problems" -gt 0 ]]; then
   printf '\nSetup checks completed with %d issue(s). Follow the guidance above and rerun this script.\n' "$problems"
@@ -147,3 +130,4 @@ if [[ "$problems" -gt 0 ]]; then
 fi
 
 printf '\nSetup checks completed successfully.\n'
+

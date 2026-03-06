@@ -13,11 +13,14 @@ void main() {
     await resetDependencies();
   });
 
-  testWidgets('HomeScreen renders all required action buttons', (WidgetTester tester) async {
+  testWidgets('HomeScreen renders primary listening and utility actions', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
 
-    expect(find.widgetWithText(ElevatedButton, 'Start Listening'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Quran Search (Debug)'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Settings'), findsOneWidget);
+    expect(find.text('Start Listening'), findsOneWidget);
+    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.monitor_heart_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.search_rounded), findsOneWidget);
   });
 }

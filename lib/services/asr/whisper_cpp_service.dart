@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -59,12 +60,20 @@ class WhisperCppService implements WhisperTranscriberService {
       _lastInitError = null;
       _logger.info('WhisperCppService initialized with model at $trimmedPath');
     } catch (error) {
+      if (!Platform.isIOS) {
+        _lastInitSuccessful = false;
+        _lastInitError = '$error';
+        rethrow;
+      }
+
       _modelPath = trimmedPath;
       _initialized = true;
       _nativeAvailable = false;
       _lastInitSuccessful = false;
       _lastInitError = '$error';
-      _logger.warning('Whisper native bridge unavailable. Falling back to mock transcript mode: $error');
+      _logger.warning(
+        'Whisper native bridge unavailable on iOS. Falling back to mock transcript mode: $error',
+      );
     }
   }
 
