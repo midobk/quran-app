@@ -78,7 +78,7 @@ void main() {
           transcript: 'الله نور السماوات',
           results: <SearchResult>[_sampleResult()],
           autoLockConfig: const SearchConfig(autoLockMinScore: 99, autoLockMinMargin: 99),
-          liveScreenBuilder: (_) => const _LiveMarkerScreen(),
+          liveScreenBuilder: (_, int? initialPointerAyahId) => const _LiveMarkerScreen(),
         ),
       ),
     );
@@ -88,6 +88,44 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Live Marker'), findsOneWidget);
+  });
+
+  testWidgets('warmup auto-lock forwards likely next ayah to live screen', (
+    WidgetTester tester,
+  ) async {
+    final ListeningWarmupController controller = ListeningWarmupController(
+      startMic: () async {},
+      stopMic: () async {},
+      getLastSecondsPcm16k: (_) => Float32List.fromList(List<double>.filled(16000, 0)),
+      transcribe: (_) async => 'الله نور السماوات',
+      anchorValidate: (String transcript) async => InitialLockComputation(
+        anchorCandidates: <SearchResult>[_sampleResult()],
+        lock: const InitialLockResult(
+          ayahId: 3,
+          likelyNextAyahId: 4,
+          score: 1.6,
+          debugScores: <String, double>{'start': 1.0, 'mid': 1.6, 'end': 1.2},
+          selectedPath: '3->4',
+        ),
+      ),
+      ensureSeedData: () async {},
+      warmupDuration: const Duration(seconds: 1),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ListeningWarmupScreen(
+          controller: controller,
+          liveScreenBuilder: (_, int? initialPointerAyahId) =>
+              _LiveMarkerScreen(pointerAyahId: initialPointerAyahId),
+          autoLockConfig: const SearchConfig(autoLockMinScore: 1.0, autoLockMinMargin: 0.0),
+        ),
+      ),
+    );
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('Live Marker 4'), findsOneWidget);
   });
 
   testWidgets('shows processing state after countdown while transcription is running', (
@@ -131,6 +169,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Results Marker'), findsOneWidget);
   });
+
+  testWidgets('tapping the recommended result forwards likely next ayah to live screen', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ResultsScreen(
+          transcript: 'الله نور السماوات',
+          results: <SearchResult>[_sampleResult()],
+          autoLockConfig: const SearchConfig(autoLockMinScore: 99, autoLockMinMargin: 99),
+          initialLock: const InitialLockResult(
+            ayahId: 3,
+            likelyNextAyahId: 4,
+            score: 1.6,
+            debugScores: <String, double>{'start': 1.0, 'mid': 1.6, 'end': 1.2},
+            selectedPath: '3->4',
+          ),
+          liveScreenBuilder: (_, int? initialPointerAyahId) =>
+              _LiveMarkerScreen(pointerAyahId: initialPointerAyahId),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Tap to lock'));
+    await tester.pumpAndSettle();
+    expect(find.text('Live Marker 4'), findsOneWidget);
+  });
 }
 
 SearchResult _sampleResult() {
@@ -161,10 +226,13 @@ class _ResultMarkerScreen extends StatelessWidget {
 }
 
 class _LiveMarkerScreen extends StatelessWidget {
-  const _LiveMarkerScreen();
+  const _LiveMarkerScreen({this.pointerAyahId});
+
+  final int? pointerAyahId;
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Live Marker')));
+    final String label = pointerAyahId == null ? 'Live Marker' : 'Live Marker $pointerAyahId';
+    return Scaffold(body: Center(child: Text(label)));
   }
 }

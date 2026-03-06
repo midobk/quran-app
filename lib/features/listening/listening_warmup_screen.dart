@@ -34,7 +34,7 @@ class ListeningWarmupScreen extends StatefulWidget {
   final ListeningWarmupController? controller;
   final Duration warmupDuration;
   final Widget Function(WarmupOutcome outcome)? resultsScreenBuilder;
-  final Widget Function(SearchResult result)? liveScreenBuilder;
+  final Widget Function(SearchResult result, int? initialPointerAyahId)? liveScreenBuilder;
   final SearchConfig? autoLockConfig;
   final AppSettingsService? settingsService;
 
@@ -118,9 +118,10 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
       return null;
     }
 
-    final SearchResult? recommended = outcome.results
-        .cast<SearchResult?>()
-        .firstWhere((SearchResult? result) => result?.ayah.id == lock.ayahId, orElse: () => null);
+    final SearchResult? recommended = outcome.results.cast<SearchResult?>().firstWhere(
+      (SearchResult? result) => result?.ayah.id == lock.ayahId,
+      orElse: () => null,
+    );
     if (recommended == null) {
       return null;
     }
@@ -138,6 +139,13 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
     return null;
   }
 
+  int? _resolveInitialPointerAyahId(InitialLockResult? lock, SearchResult result) {
+    if (lock == null || lock.ayahId != result.ayah.id) {
+      return null;
+    }
+    return lock.likelyNextAyahId;
+  }
+
   Future<void> _runWarmup() async {
     try {
       final WarmupOutcome outcome = await _controller.start();
@@ -151,15 +159,21 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
         outcome,
         effectiveAutoLockConfig,
       );
+      final InitialLockResult? initialLock = outcome.initialLock;
       final Widget destination;
       if (autoLockCandidate != null) {
+        final int? initialPointerAyahId = _resolveInitialPointerAyahId(
+          initialLock,
+          autoLockCandidate,
+        );
         destination =
-            widget.liveScreenBuilder?.call(autoLockCandidate) ??
+            widget.liveScreenBuilder?.call(autoLockCandidate, initialPointerAyahId) ??
             LiveScreen(
               initialLockedAyahId: autoLockCandidate.ayah.id,
               initialSurahNameAr: autoLockCandidate.ayah.surahNameAr,
               initialAyahNo: autoLockCandidate.ayah.ayahNo,
               settingsService: _settingsService,
+              initialPointerAyahId: initialPointerAyahId,
             );
       } else {
         destination =
@@ -169,6 +183,7 @@ class _ListeningWarmupScreenState extends State<ListeningWarmupScreen> {
               results: outcome.results,
               autoLockConfig: effectiveAutoLockConfig,
               settingsService: _settingsService,
+              initialLock: initialLock,
               recommendedAyahId: outcome.initialLock?.ayahId,
             );
       }

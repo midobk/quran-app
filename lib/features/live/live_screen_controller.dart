@@ -169,11 +169,25 @@ class LiveScreenController extends ChangeNotifier {
   }
 
   Future<void> goToPreviousAyah() async {
-    await _setPointerAyah(_pointerAyahId - 1);
+    final AyahRow? currentAyah = _currentAyah;
+    if (currentAyah == null) {
+      return;
+    }
+    final AyahRow? previousAyah = await _repository.getPreviousAyah(currentAyah);
+    if (previousAyah != null) {
+      await _setPointerAyah(previousAyah.id);
+    }
   }
 
   Future<void> goToNextAyah() async {
-    await _setPointerAyah(_pointerAyahId + 1);
+    final AyahRow? currentAyah = _currentAyah;
+    if (currentAyah == null) {
+      return;
+    }
+    final AyahRow? nextAyah = await _repository.getNextAyah(currentAyah);
+    if (nextAyah != null) {
+      await _setPointerAyah(nextAyah.id);
+    }
   }
 
   Future<void> _setPointerAyah(int ayahId) async {

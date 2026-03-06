@@ -27,6 +27,7 @@ class LiveScreen extends StatefulWidget {
     required this.initialLockedAyahId,
     super.key,
     this.controller,
+    this.initialPointerAyahId,
     this.initialSurahNameAr,
     this.initialAyahNo,
     this.settingsService,
@@ -34,6 +35,7 @@ class LiveScreen extends StatefulWidget {
 
   final int initialLockedAyahId;
   final LiveScreenController? controller;
+  final int? initialPointerAyahId;
   final String? initialSurahNameAr;
   final int? initialAyahNo;
   final AppSettingsService? settingsService;
@@ -63,7 +65,7 @@ class _LiveScreenState extends State<LiveScreen> {
     _controller =
         widget.controller ??
         LiveScreenController(
-          initialPointerAyahId: widget.initialLockedAyahId,
+          initialPointerAyahId: widget.initialPointerAyahId ?? widget.initialLockedAyahId,
           micService: serviceLocator<MicService>(),
           whisperService: serviceLocator<WhisperCppService>(),
           modelManager: serviceLocator<ModelManager>(),
@@ -208,7 +210,7 @@ class _LiveScreenState extends State<LiveScreen> {
                 final String fallbackLabel =
                     widget.initialSurahNameAr != null && widget.initialAyahNo != null
                     ? 'سورة ${widget.initialSurahNameAr} • آية ${widget.initialAyahNo}'
-                    : 'Ayah #${widget.initialLockedAyahId}';
+                    : 'Ayah #${widget.initialPointerAyahId ?? widget.initialLockedAyahId}';
                 return Center(child: Text('No ayah data found yet for $fallbackLabel'));
               }
 

@@ -21,14 +21,16 @@ class ResultsScreen extends StatefulWidget {
     this.autoLockConfig,
     this.liveScreenBuilder,
     this.settingsService,
+    this.initialLock,
     this.recommendedAyahId,
   });
 
   final String transcript;
   final List<SearchResult> results;
   final SearchConfig? autoLockConfig;
-  final Widget Function(SearchResult result)? liveScreenBuilder;
+  final Widget Function(SearchResult result, int? initialPointerAyahId)? liveScreenBuilder;
   final AppSettingsService? settingsService;
+  final InitialLockResult? initialLock;
   final int? recommendedAyahId;
 
   @override
@@ -47,7 +49,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
       return input;
     }
 
-    final int recommendedIndex = input.indexWhere((SearchResult result) => result.ayah.id == recommendedAyahId);
+    final int recommendedIndex = input.indexWhere(
+      (SearchResult result) => result.ayah.id == recommendedAyahId,
+    );
     if (recommendedIndex <= 0) {
       return input;
     }
@@ -90,6 +94,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   List<SearchResult> get _displayResults => _orderedResults;
 
+  int? _resolveInitialPointerAyahId(SearchResult result) {
+    final InitialLockResult? initialLock = widget.initialLock;
+    if (initialLock == null || initialLock.ayahId != result.ayah.id) {
+      return null;
+    }
+    return initialLock.likelyNextAyahId;
+  }
+
   Future<void> _openLiveScreen(SearchResult result, {required bool triggerAd}) async {
     if (!mounted) {
       return;
@@ -102,13 +114,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
     }
 
+    final int? initialPointerAyahId = _resolveInitialPointerAyahId(result);
     final Widget destination =
-        widget.liveScreenBuilder?.call(result) ??
+        widget.liveScreenBuilder?.call(result, initialPointerAyahId) ??
         LiveScreen(
           initialLockedAyahId: result.ayah.id,
           initialSurahNameAr: result.ayah.surahNameAr,
           initialAyahNo: result.ayah.ayahNo,
           settingsService: _settingsService,
+          initialPointerAyahId: initialPointerAyahId,
         );
 
     await Navigator.of(
