@@ -175,24 +175,32 @@ class QuranSearchEngine {
     );
 
     final String midQuery = windows.mid.join(' ');
-    final List<SearchResult> anchorCandidates = await searchGlobal(midQuery, config: effectiveConfig);
+    final List<SearchResult> anchorCandidates = await searchGlobal(
+      midQuery,
+      config: effectiveConfig,
+    );
     final List<SearchResult> topAnchors = anchorCandidates.take(math.max(1, anchorTopN)).toList();
     if (topAnchors.isEmpty) {
       return const InitialLockComputation(anchorCandidates: <SearchResult>[], lock: null);
     }
 
-    final int maxAyahId = await _repository.getAyahCount();
     final Map<int, AyahRow> ayahCache = <int, AyahRow>{};
+    final Set<int> missingAyahIds = <int>{};
     _PathEvaluation? bestEvaluation;
     final Map<int, double> bestEndWithoutNextByAnchor = <int, double>{};
 
     for (final SearchResult anchor in topAnchors) {
       final int anchorId = anchor.ayah.id;
+      ayahCache[anchorId] = anchor.ayah;
+      final bool hasPrevious = anchorId > 1
+          ? await _cacheAyahIfPresent(anchorId - 1, ayahCache, missingAyahIds)
+          : false;
+      final bool hasNext = await _cacheAyahIfPresent(anchorId + 1, ayahCache, missingAyahIds);
       final List<List<int>> paths = <List<int>>[
         <int>[anchorId],
-        if (anchorId + 1 <= maxAyahId) <int>[anchorId, anchorId + 1],
-        if (anchorId - 1 >= 1) <int>[anchorId - 1, anchorId],
-        if (anchorId - 1 >= 1 && anchorId + 1 <= maxAyahId) <int>[anchorId - 1, anchorId, anchorId + 1],
+        if (hasNext) <int>[anchorId, anchorId + 1],
+        if (hasPrevious) <int>[anchorId - 1, anchorId],
+        if (hasPrevious && hasNext) <int>[anchorId - 1, anchorId, anchorId + 1],
       ];
 
       for (final List<int> path in paths) {
@@ -811,6 +819,31 @@ class QuranSearchEngine {
     final List<String> end = tokens.sublist(tokens.length - windowCount);
 
     return _WindowSlices(start: start, mid: mid, end: end);
+  }
+
+  Future<bool> _cacheAyahIfPresent(
+    int ayahId,
+    Map<int, AyahRow> ayahCache,
+    Set<int> missingAyahIds,
+  ) async {
+    if (ayahId < 1) {
+      return false;
+    }
+    if (ayahCache.containsKey(ayahId)) {
+      return true;
+    }
+    if (missingAyahIds.contains(ayahId)) {
+      return false;
+    }
+
+    final AyahRow? ayah = await _repository.getAyahById(ayahId);
+    if (ayah == null) {
+      missingAyahIds.add(ayahId);
+      return false;
+    }
+
+    ayahCache[ayahId] = ayah;
+    return true;
   }
 
   Future<List<String>> _buildVirtualTokens(List<int> ayahIds, Map<int, AyahRow> ayahCache) async {
